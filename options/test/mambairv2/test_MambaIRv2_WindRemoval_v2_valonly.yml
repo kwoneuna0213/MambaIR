@@ -1,0 +1,62 @@
+# Validation-only 실행용 (학습 크래시 원인 디버깅)
+# iter 2000 체크포인트로 val 데이터셋에 대해 inference + PSNR/SSIM 측정
+name: MambaIRv2_WindRemoval_v2_valonly
+model_type: MambaIRv2Model
+scale: 1
+num_gpu: 1        # 단일 GPU → NCCL 문제 재현 여부 확인
+manual_seed: 10
+
+datasets:
+  test_1:
+    task: SR
+    name: JsolutionDuct_v2_Val
+    type: PairedImageDataset
+    dataroot_gt:
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_gt/1_2_high
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_gt/1_2_mid
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_gt/1_2_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_gt/1_2_lv4
+    dataroot_lq:
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_lq/1_2_high
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_lq/1_2_mid
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_lq/1_2_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val1_lq/1_2_lv4
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 1
+  in_chans: 3
+  img_size: 128
+  img_range: 1.
+  embed_dim: 96
+  d_state: 16
+  depths: [4, 4, 4, 4]
+  num_heads: [4, 4, 4, 4]
+  window_size: 16
+  inner_rank: 48
+  num_tokens: 96
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+
+path:
+  pretrain_network_g: experiments/MambaIRv2_WindRemoval_v2/models/net_g_2000.pth
+  strict_load_g: true
+  param_key_g: params_ema
+
+val:
+  suffix: ~                    # 저장 파일명 suffix (~ = 없음, model name으로 대체)
+  save_img: true
+  save_img_max_per_folder: 3   # 폴더당 3장 저장 (결과 확인용)
+
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:
+      type: calculate_ssim
+      crop_border: 0
+      test_y_channel: false

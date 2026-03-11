@@ -1,0 +1,112 @@
+# Wind noise removal (same-resolution paired restoration)
+# Optimized for 4x 24GB GPUs (Targeting ~20GB VRAM usage)
+name: MambaIRv2_WindRemoval_Optimized
+model_type: MambaIRv2Model
+scale: 1
+num_gpu: 4
+manual_seed: 10
+
+datasets:
+  train:
+    task: SR
+    name: JsolutionDuct
+    type: PairedImageDataset
+    dataroot_gt:
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_1_no_wind/1_1_matched
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_1_no_wind/1_2_matched
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_1_no_wind/2_1_matched
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_1_no_wind/2_2_matched
+    dataroot_lq:
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_wind_update/1_1_high/test/base
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_wind_update/1_2_high/test/base
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_wind_update/2_1_high/test/base
+      - /home/euna.kwon/01_data/02_jsolution_duct/01_wind_update/2_2_high/test/base
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+    gt_size: 128
+    use_hflip: true
+    use_rot: true
+
+    use_shuffle: true
+    num_worker_per_gpu: 8
+    batch_size_per_gpu: 3
+    dataset_enlarge_ratio: 100
+    prefetch_mode: ~
+
+  val:
+    task: SR
+    name: JsolutionDuctVal
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/MambaIR/datasets/duct_val_small/HR
+    dataroot_lq: /home/euna.kwon/MambaIR/datasets/duct_val_small/LR
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 1
+  in_chans: 3
+  img_size: 128
+  img_range: 1.
+  embed_dim: 96
+  d_state: 16
+  depths: [4, 4, 4, 4]
+  num_heads: [4, 4, 4, 4]
+  window_size: 16
+  inner_rank: 48
+  num_tokens: 96
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+
+path:
+  pretrain_network_g: ~
+  strict_load_g: true
+  resume_state: experiments/MambaIRv2_WindRemoval_Optimized/training_states/50000.state
+
+train:
+  optim_g:
+    type: Adam
+    lr: !!float 2e-4
+    weight_decay: 0
+    betas: [0.9, 0.99]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: [50000, 80000, 90000, 95000]    
+    gamma: 0.5
+  total_iter: 100000
+  warmup_iter: -1
+
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1.0
+    reduction: mean
+
+val:
+  val_freq: !!float 2000  # 데이터가 적으므로 더 자주 모니터링 (5e3 -> 2e3)
+  save_img: true         # 초반에는 결과 이미지를 직접 확인하는 것이 좋음
+
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:                 # 노이즈 제거 태스크이므로 SSIM도 함께 확인 추천
+      type: calculate_ssim
+      crop_border: 0
+      test_y_channel: false
+
+logger:
+  print_freq: 200
+  save_checkpoint_freq: !!float 2e3 # val_freq와 맞춤
+  use_tb_logger: true
+  # wandb:
+  #   project: MambaIRv2_WindNoise
+  #   resume_id: ~
+
+dist_params:
+  backend: nccl
+  port: 29500

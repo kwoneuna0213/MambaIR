@@ -1,0 +1,40 @@
+name: MambaIRv2_WindRemoval_v3_ft
+model_type: MambaIRv2Model
+scale: 1
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  test_video01:
+    name: video01
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/Video01_h264_frames
+    dataroot_lq: /home/euna.kwon/Video01_h264_frames
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 1
+  in_chans: 3
+  img_size: 128
+  img_range: 1.
+  embed_dim: 96
+  d_state: 16
+  depths: [4, 4, 4, 4]
+  num_heads: [4, 4, 4, 4]
+  window_size: 16
+  inner_rank: 48
+  num_tokens: 96
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+
+path:
+  pretrain_network_g: /home/euna.kwon/MambaIR/experiments/MambaIRv2_WindRemoval_v3_ft/models/net_g_28000.pth
+  strict_load_g: true
+  results_root: /home/euna.kwon/MambaIR/results
+
+val:
+  save_img: true
+  suffix: ~

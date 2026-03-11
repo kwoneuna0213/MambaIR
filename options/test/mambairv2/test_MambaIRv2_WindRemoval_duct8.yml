@@ -1,0 +1,104 @@
+name: MambaIRv2_WindRemoval_v5_duct8
+model_type: MambaIRv2Model
+scale: 1
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  test_normal_lv1:
+    name: normal/lv1
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv0
+    dataroot_lq: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv1
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+  test_normal_lv2:
+    name: normal/lv2
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv0
+    dataroot_lq: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv2
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+  test_normal_lv3:
+    name: normal/lv3
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv0
+    dataroot_lq: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv3
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+  test_normal_lv4:
+    name: normal/lv4
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv0
+    dataroot_lq: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv4
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+  test_normal_lv5:
+    name: normal/lv5
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv0
+    dataroot_lq: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/normal/lv5
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+  test_obs_lv3:
+    name: obs/lv3
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/obs/lv0
+    dataroot_lq: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/obs/lv3
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+  test_obs_lv4:
+    name: obs/lv4
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/obs/lv0
+    dataroot_lq: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/obs/lv4
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 1
+  in_chans: 3
+  img_size: 128
+  img_range: 1.
+  embed_dim: 96
+  d_state: 16
+  depths: [4, 4, 4, 4]
+  num_heads: [4, 4, 4, 4]
+  window_size: 16
+  inner_rank: 48
+  num_tokens: 96
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+
+path:
+  pretrain_network_g: ~   # run_test_duct8.sh 가 최신 weight 로 자동 교체
+  strict_load_g: true
+  results_root: /home/euna.kwon/01_data/02_jsolution_duct/duct8_sample/mambair_results
+
+val:
+  save_img: true
+  suffix: ~
+  skip_existing: true
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:
+      type: calculate_ssim
+      crop_border: 0
+      test_y_channel: false

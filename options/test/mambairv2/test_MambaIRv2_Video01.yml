@@ -1,0 +1,41 @@
+name: MambaIRv2_WindRemoval_Optimized
+model_type: MambaIRv2Model
+scale: 1
+num_gpu: 1
+manual_seed: 10
+
+datasets:
+  test_video01:
+    name: video01
+    type: PairedImageDataset
+    dataroot_gt: /home/euna.kwon/Video01_h264_frames   # GT 없으므로 lq와 동일 폴더 사용
+    dataroot_lq: /home/euna.kwon/Video01_h264_frames
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 1
+  in_chans: 3
+  img_size: 128
+  img_range: 1.
+  embed_dim: 96
+  d_state: 16
+  depths: [4, 4, 4, 4]
+  num_heads: [4, 4, 4, 4]
+  window_size: 16
+  inner_rank: 48
+  num_tokens: 96
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+
+path:
+  pretrain_network_g: /home/euna.kwon/MambaIR/experiments/MambaIRv2_WindRemoval_v2/models/net_g_88000.pth
+  strict_load_g: true
+  results_root: /home/euna.kwon/MambaIR/results
+
+val:
+  save_img: true
+  suffix: ~
+  self_ensemble: true   # 4-way TTA (h/v flip): 추론 시간 4× 증가, 성능 소폭 향상

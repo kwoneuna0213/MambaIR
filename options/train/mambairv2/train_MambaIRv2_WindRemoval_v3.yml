@@ -1,0 +1,141 @@
+# Wind noise removal (same-resolution paired restoration) - v3
+# Train : Duct 1_1, 2_1  (lv3 + lv4 only)
+#         초반 40 + 중반 50 + 후반 50 = 140 frames/folder  → sampled_v3/
+# Val   : Duct 1_2        (lv3 + lv4 only)                → sampled/  기존 재사용
+name: MambaIRv2_WindRemoval_v3
+model_type: MambaIRv2Model
+scale: 1
+num_gpu: 4
+manual_seed: 10
+
+datasets:
+  train:
+    task: SR
+    name: JsolutionDuct_v3
+    type: PairedImageDataset
+    dataroot_gt:
+      # ── Duct 1_1  (초반40 + 중반50 + 후반50 = 140 frames, GT symlinks) ──
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/1_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/1_1_lv4
+      # ── Duct 2_1 ────────────────────────────────────────────────────────
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/2_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/2_1_lv4
+    dataroot_lq:
+      # ── Duct 1_1 ────────────────────────────────────────────────────────
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/1_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/1_1_lv4
+      # ── Duct 2_1 ────────────────────────────────────────────────────────
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/2_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/2_1_lv4
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+    gt_size: 128
+    use_hflip: true
+    use_rot: true
+
+    use_shuffle: true
+    num_worker_per_gpu: 6
+    batch_size_per_gpu: 3
+    dataset_enlarge_ratio: 6   # 560샘플×6 → ~84k iter (v2의 88k 수준에 맞춤)
+    prefetch_mode: ~
+
+  val:
+    task: SR
+    name: JsolutionDuct_v3_Val
+    type: PairedImageDataset
+    dataroot_gt:
+      # ── Duct 1_2  (초반1 + 중반1 + 후반1 GT, LQ와 1:1 매칭) ──
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_gt/1_2_high
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_gt/1_2_mid
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_gt/1_2_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_gt/1_2_lv4
+    dataroot_lq:
+      # ── Duct 1_2  (초반1 + 중반1 + 후반1 = 3 frames each) ────
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_lq/1_2_high
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_lq/1_2_mid
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_lq/1_2_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_lq/1_2_lv4
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 1
+  in_chans: 3
+  img_size: 128
+  img_range: 1.
+  embed_dim: 96
+  d_state: 16
+  depths: [4, 4, 4, 4]
+  num_heads: [4, 4, 4, 4]
+  window_size: 16
+  inner_rank: 48
+  num_tokens: 96
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+
+path:
+  pretrain_network_g: ~
+  strict_load_g: true
+  resume_state: /home/euna.kwon/MambaIR/experiments/MambaIRv2_WindRemoval_v3_archived_20260304_134129/training_states/6000.state
+
+train:
+  optim_g:
+    type: Adam
+    lr: !!float 2e-4
+    weight_decay: 0
+    betas: [0.9, 0.99]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: ~       # num_epochs 기반으로 train.py에서 자동 계산 (50%, 80%, 90%, 95%)
+    gamma: 0.5
+  num_epochs: 300       # total_iter = num_epochs × num_iter_per_epoch 으로 자동 계산
+  total_iter: ~         # num_epochs 지정 시 자동 덮어쓰기
+  warmup_iter: -1
+
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1.0
+    reduction: mean
+
+  perceptual_opt:
+    type: PerceptualLoss
+    layer_weights:
+      conv3_4: 1.0
+      conv4_4: 1.0
+    vgg_type: vgg19
+    use_input_norm: true
+    range_norm: false
+    perceptual_weight: 0.1   # L1:perceptual ≈ 10:1 스케일 균형
+    style_weight: 0.
+    criterion: l1
+
+val:
+  val_freq: !!float 4e3
+  save_img: true
+  save_img_sample: [first, mid, last]   # 폴더별 첫·중간·마지막 1장씩 저장
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:
+      type: calculate_ssim
+      crop_border: 0
+      test_y_channel: false
+
+logger:
+  print_freq: 200
+  save_checkpoint_freq: !!float 2e3
+  use_tb_logger: true
+  # wandb:
+  #   project: MambaIRv2_WindNoise
+  #   resume_id: ~
+
+dist_params:
+  backend: nccl
+  port: 29500

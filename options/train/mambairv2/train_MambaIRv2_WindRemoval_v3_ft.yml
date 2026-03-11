@@ -1,0 +1,129 @@
+# Wind noise removal - v3 Fine-Tune
+# Base  : MambaIRv2_WindRemoval_v2 (net_g_88000.pth) 로드
+# Train : Duct 1_1, 2_1  lv3 + lv4 only  → sampled_v3/
+# Val   : Duct 1_2        lv3 + lv4 only  → sampled/  기존 재사용
+# GPU   : 2, 3  (CUDA_VISIBLE_DEVICES=2,3 로 실행)
+name: MambaIRv2_WindRemoval_v3_ft
+model_type: MambaIRv2Model
+scale: 1
+num_gpu: 2
+manual_seed: 10
+
+datasets:
+  train:
+    task: SR
+    name: JsolutionDuct_v3_ft
+    type: PairedImageDataset
+    dataroot_gt:
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/1_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/1_1_lv4
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/2_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_gt/2_1_lv4
+    dataroot_lq:
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/1_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/1_1_lv4
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/2_1_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled_v3/train_lq/2_1_lv4
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+    gt_size: 128
+    use_hflip: true
+    use_rot: true
+
+    use_shuffle: true
+    num_worker_per_gpu: 4
+    batch_size_per_gpu: 3
+    dataset_enlarge_ratio: 3   # 560샘플×3 → ~28k iter (fine-tune 적정량)
+    prefetch_mode: ~
+
+  val:
+    task: SR
+    name: JsolutionDuct_v3_ft_Val
+    type: PairedImageDataset
+    dataroot_gt:
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_gt/1_2_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_gt/1_2_lv4
+    dataroot_lq:
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_lq/1_2_lv3
+      - /home/euna.kwon/01_data/02_jsolution_duct/sampled/val_lq/1_2_lv4
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+network_g:
+  type: MambaIRv2
+  upscale: 1
+  in_chans: 3
+  img_size: 128
+  img_range: 1.
+  embed_dim: 96
+  d_state: 16
+  depths: [4, 4, 4, 4]
+  num_heads: [4, 4, 4, 4]
+  window_size: 16
+  inner_rank: 48
+  num_tokens: 96
+  convffn_kernel_size: 5
+  mlp_ratio: 2.
+
+path:
+  pretrain_network_g: /home/euna.kwon/MambaIR/experiments/MambaIRv2_WindRemoval_v2/models/net_g_88000.pth
+  strict_load_g: true
+  resume_state: ~   # 가중치만 로드, 학습 상태는 새로 시작
+
+train:
+  optim_g:
+    type: Adam
+    lr: !!float 2e-5   # fine-tune: 원래(2e-4)의 1/10
+    weight_decay: 0
+    betas: [0.9, 0.99]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: ~
+    gamma: 0.5
+  num_epochs: 100
+  total_iter: ~
+  warmup_iter: -1
+
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1.0
+    reduction: mean
+
+  # perceptual_opt:
+  #   type: PerceptualLoss
+  #   layer_weights:
+  #     conv3_4: 1.0
+  #     conv4_4: 1.0
+  #   vgg_type: vgg19
+  #   use_input_norm: true
+  #   range_norm: false
+  #   perceptual_weight: 0.1
+  #   style_weight: 0.
+  #   criterion: l1
+
+val:
+  val_freq: !!float 5e3   # fine-tune이라 더 자주 확인
+  save_img: true
+  save_img_sample: [first, mid, last]
+  metrics:
+    psnr:
+      type: calculate_psnr
+      crop_border: 0
+      test_y_channel: false
+    ssim:
+      type: calculate_ssim
+      crop_border: 0
+      test_y_channel: false
+
+logger:
+  print_freq: 100
+  save_checkpoint_freq: !!float 2e3
+  use_tb_logger: true
+
+dist_params:
+  backend: nccl
+  port: 29501   # v3 (29500)과 포트 충돌 방지

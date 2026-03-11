@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pth
+*.pt
+experiments/
+results/
+results_*/
+tb_logger/
+*.egg-info/
+*.egg
+dist/
+build/
